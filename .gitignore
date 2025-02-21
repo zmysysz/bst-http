@@ -1,0 +1,18 @@
+# 忽略 VSCode 配置
+.vscode/
+
+# 忽略 Clion/Idea 配置
+.idea/
+
+# 忽略 CMake 的构建输出
+build/
+cmake-build-*/
+
+# 忽略项目私有配置
+*.local
+*.user
+*.log
+
+# 其他你想忽略的目录或文件
+config/dev_config.json
+
