@@ -5,8 +5,8 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include "server/http_server.hpp"
-#include "server/request_handler.hpp"
+#include "http_server.hpp"
+#include "request_handler.hpp"
 
 //------------------------------------------------------------------------------
 void Hello(http::request<http::string_body>& req, http::response<http::string_body>& res,bst::context& ctx)
@@ -74,6 +74,7 @@ int main(int argc, char* argv[])
     server.get_context()->set<std::string>(std::string("hello"),std::string("hello!!!"));
     server.get_context()->set<std::string>(std::string("hello1"),std::string("hello1!!!"));
     server.get_context()->set<std::string>(std::string("hello2"),std::string("hello1!!!"));
+    
     //
     server.run_server(address,port,threads);
 
