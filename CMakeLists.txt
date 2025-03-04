@@ -16,7 +16,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 #include headers
-include_directories(server)
+include_directories(http)
 
 #install headers
-install(DIRECTORY server/ DESTINATION /usr/local/include/bst-http)
+install(DIRECTORY http/ DESTINATION /usr/local/include/bst-http)

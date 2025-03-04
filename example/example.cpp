@@ -14,7 +14,7 @@ void Hello(http::request<http::string_body>& req, http::response<http::string_bo
     res.set(http::field::server, "Beast");
     res.set(http::field::content_type, "text/html");
     res.keep_alive(req.keep_alive());
-    res.body() = ctx.get<std::string>("hello");
+    res.body() = ctx.get_global()->get<std::string>("hello");
     res.prepare_payload();
     //std::this_thread::sleep_for(std::chrono::seconds(3));
 }
@@ -31,7 +31,7 @@ class HelloHandler : public std::enable_shared_from_this<HelloHandler>
         res.set(http::field::server, "Beast");
         res.set(http::field::content_type, "text/html");
         res.keep_alive(req.keep_alive());
-        res.body() = other_ + ctx.get<std::string>("hello1");
+        res.body() = other_ + ctx.get_global()->get<std::string>("hello1");
         res.prepare_payload();
     }
     void Hello2(http::request<http::string_body>& req, http::response<http::string_body>& res,bst::context& ctx)
@@ -39,7 +39,7 @@ class HelloHandler : public std::enable_shared_from_this<HelloHandler>
         res.set(http::field::server, "Beast");
         res.set(http::field::content_type, "text/html");
         res.keep_alive(req.keep_alive());
-        res.body() = other_ + ctx.get<std::string>("hello2");
+        res.body() = other_ + ctx.get_global()->get<std::string>("hello2");
         res.prepare_payload();
     }
 };
@@ -71,9 +71,9 @@ int main(int argc, char* argv[])
     bst::http_server server;
     //user can set the context with the server supported context
     //or set the data on other way
-    server.get_context()->set<std::string>(std::string("hello"),std::string("hello!!!"));
-    server.get_context()->set<std::string>(std::string("hello1"),std::string("hello1!!!"));
-    server.get_context()->set<std::string>(std::string("hello2"),std::string("hello1!!!"));
+    server.get_global()->set<std::string>(std::string("hello"),std::string("hello!!!"));
+    server.get_global()->set<std::string>(std::string("hello1"),std::string("hello1!!!"));
+    server.get_global()->set<std::string>(std::string("hello2"),std::string("hello2!!!"));
     
     //
     server.run_server(address,port,threads);
