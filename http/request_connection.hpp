@@ -49,8 +49,10 @@ namespace bst {
                 co_await acceptor.async_accept(socket, net::use_awaitable);
 
                 // Spawn a new session for each connection
-                net::co_spawn(ioc,
-                    request_session::run_session(beast::tcp_stream(std::move(socket)), ctx),
+                std::shared_ptr<request_session> session = std::make_shared<request_session>();
+                net::co_spawn(
+                    ioc,
+                    session->run_session(beast::tcp_stream(std::move(socket)), ctx),
                     net::detached);
             }
         }

@@ -13,9 +13,10 @@ namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
 namespace bst {
-    class request_session {
+    class request_session : public std::enable_shared_from_this<request_session>
+    {
     public:
-        static net::awaitable<void> run_session(
+        net::awaitable<void> run_session(
             beast::tcp_stream stream,
             std::shared_ptr<bst::context> const& ctx) {
             beast::flat_buffer buffer;
@@ -31,6 +32,7 @@ namespace bst {
                     }
 
                     // Read request
+                    
                     http::request<http::string_body> req;
                     std::size_t bytes_transferred = 
                         co_await http::async_read(stream, buffer, req, net::use_awaitable);
@@ -39,9 +41,10 @@ namespace bst {
                         // No data read, connection might be closed
                         break;
                     }
-
+                    std::shared_ptr<request_handler_impl> handler_impl = 
+                    std::make_shared<request_handler_impl>();
                     // Handle request
-                    auto res = co_await request_handler::handle_request(ctx, std::move(req));
+                    auto res = co_await handler_impl->handle_request(ctx, std::move(req));
 
                     // Choose write method based on response size
                     if (res.body().size() < 1024 * 1024) {

@@ -63,6 +63,21 @@ namespace bst
             }
             return sub_ctx_;
         }
+        //set the sub context
+        void set_sub(std::shared_ptr<bst::context> sub_ctx)
+        {
+            if(!sub_ctx)
+            {
+                sub_ctx_ = std::make_shared<bst::context>();
+                sub_ctx_ = sub_ctx;
+                sub_ctx_->g_ctx_ = g_ctx_;
+            }
+            else
+            {
+                sub_ctx_ = sub_ctx;
+                g_ctx_ = sub_ctx_->g_ctx_;
+            }
+        }
 
         //global context
         std::shared_ptr<bst::context> get_global()

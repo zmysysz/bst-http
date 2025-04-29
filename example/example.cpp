@@ -12,7 +12,7 @@
 namespace net = boost::asio;
 std::string test_domain;
 //------------------------------------------------------------------------------
-net::awaitable<void>  Hello(http::request<http::string_body>& req, http::response<http::string_body>& res,bst::context& ctx)
+net::awaitable<void>  Hello(http::request<http::string_body>& req, http::response<http::string_body>& res,bst::request_context& ctx)
 {
     res.set(http::field::server, "Beast");
     res.set(http::field::content_type, "text/html");
@@ -32,7 +32,7 @@ class HelloHandler : public std::enable_shared_from_this<HelloHandler>
     HelloHandler(){
     }
     ~HelloHandler(){}
-    net::awaitable<void>  Hello1(http::request<http::string_body>& req, http::response<http::string_body>& res,bst::context& ctx)
+    net::awaitable<void>  Hello1(http::request<http::string_body>& req, http::response<http::string_body>& res,bst::request_context& ctx)
     {
         res.set(http::field::server, "Beast");
         res.set(http::field::content_type, "text/html");
@@ -41,7 +41,7 @@ class HelloHandler : public std::enable_shared_from_this<HelloHandler>
         res.prepare_payload();
         co_return;
     }
-    net::awaitable<void>  Hello2(http::request<http::string_body>& req, http::response<http::string_body>& res,bst::context& ctx)
+    net::awaitable<void>  Hello2(http::request<http::string_body>& req, http::response<http::string_body>& res,bst::request_context& ctx)
     {
         res.set(http::field::server, "Beast");
         res.set(http::field::content_type, "text/html");
@@ -54,7 +54,7 @@ class HelloHandler : public std::enable_shared_from_this<HelloHandler>
         co_return;
     }
 
-    net::awaitable<void> Hello3(http::request<http::string_body>& req, http::response<http::string_body>& res,bst::context& ctx)
+    net::awaitable<void> Hello3(http::request<http::string_body>& req, http::response<http::string_body>& res,bst::request_context& ctx)
     {
         res.set(http::field::server, "Beast");
         res.set(http::field::content_type, "text/html");
