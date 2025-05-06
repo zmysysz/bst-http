@@ -4,10 +4,12 @@
 #include <regex>
 #include <iostream>
 #include "context.hpp"
+#include <boost/asio.hpp>
 
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http = beast::http;           // from <boost/beast/http.hpp>
 namespace net = boost::asio;            // from <boost/asio.hpp>
+using tcp = net::ip::tcp;
 
 namespace bst
 {
@@ -77,7 +79,83 @@ namespace bst
             timeout_timer_.cancel();
         }
     };
-    
+    class response_sender {
+        public:
+        response_sender() = default;
+        ~response_sender() = default;
+        template<class Body>
+        static void prepare_response(std::shared_ptr<http::request<http::string_body>> req, std::shared_ptr<http::response<Body>> res)
+        {
+            //if req require close,we close
+            // Set common response headers
+            res->set(http::field::server, BOOST_BEAST_VERSION_STRING);
+            res->keep_alive(req->keep_alive());
+            res->prepare_payload();
+        }
+        // Handle request and prepare response
+        template<class Body>
+        static net::awaitable<bool> write(beast::tcp_stream& stream, std::shared_ptr<http::response<Body>> res) {
+            try {
+                // Choose write method based on response size
+                if (res->body().size() < 1024 * 1024) {
+                    // For small responses, use synchronous write
+                    beast::error_code ec;
+                    std::size_t bytes_written = http::write(stream, *res, ec);
+                    if (ec) {
+                        throw beast::system_error(ec);
+                    }
+                    if (bytes_written == 0) {
+                        throw std::runtime_error("write 0 bytes");
+                    }
+                } else {
+                    // For large responses, use asynchronous write
+                    std::size_t bytes_written = 
+                        co_await http::async_write(stream, *res, net::use_awaitable);
+                    if (bytes_written == 0) {
+                        throw std::runtime_error("write 0 bytes");
+                    }
+                }
+            }
+            catch (const beast::system_error& se) {
+                if (se.code() != http::error::end_of_stream &&
+                    se.code() != beast::errc::connection_reset &&
+                    se.code() != beast::errc::operation_canceled) 
+                {
+                    fail(se.code(), "write");
+                    co_return false;
+                }
+            }
+            catch (const std::exception& e) {
+                fail(e, "write1");
+                co_return false;
+            }
+            co_return true;    
+        }
+
+        template<class Body>
+        static bool keep_open(std::shared_ptr<http::response<Body>> res) {
+            if (!res 
+                || res->need_eof() 
+                || res->keep_alive() == false) {
+                return false;
+            }
+            return true;
+        }
+
+        // Close the stream
+        static void close(beast::tcp_stream& stream) {
+            if (stream.socket().is_open()) {
+                // Try to send any pending data before closing
+                beast::error_code shutdown_ec;
+                stream.socket().shutdown(tcp::socket::shutdown_both, shutdown_ec);
+                if (shutdown_ec && shutdown_ec != beast::errc::not_connected) {
+                    fail(shutdown_ec, "shutdown");
+                }
+                stream.socket().close(shutdown_ec);
+            }
+        }
+    };
+
     class base
     {
     private:

@@ -52,7 +52,7 @@ namespace bst {
                 std::shared_ptr<request_session> session = std::make_shared<request_session>();
                 net::co_spawn(
                     ioc,
-                    session->run_session(beast::tcp_stream(std::move(socket)), ctx),
+                    session->run_session(std::move(socket),ctx),
                     net::detached);
             }
         }

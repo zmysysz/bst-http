@@ -16,12 +16,17 @@ namespace bst {
     class request_session : public std::enable_shared_from_this<request_session>
     {
     public:
-        net::awaitable<void> run_session(
-            beast::tcp_stream stream,
+        explicit request_session()
+        {
+        }
+        ~request_session() = default;
+
+        net::awaitable<void> run_session(tcp::socket &&socket,
             std::shared_ptr<bst::context> const& ctx) {
             beast::flat_buffer buffer;
-
+            beast::tcp_stream stream(std::move(socket));
             try {
+                // Set the timeout for the session
                 stream.expires_after(std::chrono::seconds(
                     ctx->get<int>("session_timeout").value_or(600)));
 
@@ -32,46 +37,26 @@ namespace bst {
                     }
 
                     // Read request
+                    auto handler_impl = std::make_shared<request_handler_impl>();
+                    auto req = std::make_shared<http::request<http::string_body>>();
                     
-                    http::request<http::string_body> req;
                     std::size_t bytes_transferred = 
-                        co_await http::async_read(stream, buffer, req, net::use_awaitable);
+                        co_await http::async_read(stream, buffer, *req, net::use_awaitable);
 
                     if (bytes_transferred == 0) {
                         // No data read, connection might be closed
                         break;
                     }
-                    std::shared_ptr<request_handler_impl> handler_impl = 
-                    std::make_shared<request_handler_impl>();
+                    std::shared_ptr<bst::request_context> req_ctx = std::make_shared<bst::request_context>(stream);
+                    req_ctx->set_sub(ctx);
+                    req_ctx->req = req;
+
                     // Handle request
-                    auto res = co_await handler_impl->handle_request(ctx, std::move(req));
-
-                    // Choose write method based on response size
-                    if (res.body().size() < 1024 * 1024) {
-                        // For small responses, use synchronous write
-                        beast::error_code ec;
-                        std::size_t bytes_written = http::write(stream, res, ec);
-                        if (ec) {
-                            fail(ec, "write");
-                            break;
-                        }
-                        if (bytes_written == 0) {
-                            break;
-                        }
-                    } else {
-                        // For large responses, use asynchronous write
-                        std::size_t bytes_written = 
-                            co_await http::async_write(stream, res, net::use_awaitable);
-                        if (bytes_written == 0) {
-                            break;
-                        }
-                    }
-
-                    // Check if connection should be closed
-                    if (res.need_eof()) {
-                        break;
-                    }
-
+                    int status = co_await handler_impl->handle_request(req_ctx, req);
+                    // Prepare response
+                    if (req_ctx->is_auto_response()) {
+                        co_await req_ctx->response();
+                    }     
                     // Clear buffer for next read
                     buffer.consume(buffer.size());
                 }
@@ -85,19 +70,10 @@ namespace bst {
                 }
             }
             catch (const std::exception& e) {
-                fail(e, "session");
+                fail(e, "session1");
             }
-
             // Ensure connection is properly closed
-            if (stream.socket().is_open()) {
-                // Try to send any pending data before closing
-                beast::error_code shutdown_ec;
-                stream.socket().shutdown(tcp::socket::shutdown_both, shutdown_ec);
-                if (shutdown_ec && shutdown_ec != beast::errc::not_connected) {
-                    fail(shutdown_ec, "shutdown");
-                }
-                stream.socket().close(shutdown_ec);
-            }
+            response_sender::close(stream);
         }
     };
 

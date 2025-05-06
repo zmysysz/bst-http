@@ -12,13 +12,15 @@
 namespace net = boost::asio;
 std::string test_domain;
 //------------------------------------------------------------------------------
-net::awaitable<void>  Hello(http::request<http::string_body>& req, http::response<http::string_body>& res,bst::request_context& ctx)
+net::awaitable<void>  Hello(std::shared_ptr<http::request<http::string_body>> req
+    ,std::shared_ptr<http::response<http::string_body>> res
+    ,std::shared_ptr<bst::request_context> ctx)
 {
-    res.set(http::field::server, "Beast");
-    res.set(http::field::content_type, "text/html");
-    res.keep_alive(req.keep_alive());
-    res.body() = ctx.get_global()->get<std::string>("hello").value() + " " + req.body();
-    res.prepare_payload();
+    res->set(http::field::server, "Beast");
+    res->set(http::field::content_type, "text/html");
+    res->keep_alive(req->keep_alive());
+    res->body() = ctx->get_global()->get<std::string>("hello").value() + " " + req->body();
+    res->prepare_payload();
     co_return;
     //std::this_thread::sleep_for(std::chrono::seconds(3));
 }
@@ -32,40 +34,56 @@ class HelloHandler : public std::enable_shared_from_this<HelloHandler>
     HelloHandler(){
     }
     ~HelloHandler(){}
-    net::awaitable<void>  Hello1(http::request<http::string_body>& req, http::response<http::string_body>& res,bst::request_context& ctx)
+    net::awaitable<void>  Hello1(std::shared_ptr<http::request<http::string_body>> req
+        ,std::shared_ptr<http::response<http::string_body>> res
+        ,std::shared_ptr<bst::request_context> ctx)
     {
-        res.set(http::field::server, "Beast");
-        res.set(http::field::content_type, "text/html");
-        res.keep_alive(req.keep_alive());
-        res.body() = other_ + ctx.get_global()->get<std::string>("hello1").value();
-        res.prepare_payload();
+        ctx->set_manual_response();
+        auto executor = co_await net::this_coro::executor;
+        net::co_spawn(executor,
+            [&,req,res,ctx]() -> net::awaitable<void> {
+                res->set(http::field::server, "Beast");
+                res->set(http::field::content_type, "text/html");
+                //net::steady_timer timer(co_await net::this_coro::executor, std::chrono::milliseconds(300));
+                //co_await timer.async_wait(net::use_awaitable);
+                res->keep_alive(req->keep_alive());
+                res->body() = other_ + ctx->get_global()->get<std::string>("hello1").value();
+                co_await ctx->manual_response();
+                co_return;
+            },
+            net::detached
+        );
         co_return;
     }
-    net::awaitable<void>  Hello2(http::request<http::string_body>& req, http::response<http::string_body>& res,bst::request_context& ctx)
+    net::awaitable<void>  Hello2(std::shared_ptr<http::request<http::string_body>> req
+        ,std::shared_ptr<http::response<http::string_body>> res
+        ,std::shared_ptr<bst::request_context> ctx)
     {
-        res.set(http::field::server, "Beast");
-        res.set(http::field::content_type, "text/html");
+        res->set(http::field::server, "Beast");
+        res->set(http::field::content_type, "text/html");
         //sleep 30ms
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
-        res.keep_alive(req.keep_alive());
-        res.body() = other_ + ctx.get_global()->get<std::string>("hello2").value();
+        res->keep_alive(req->keep_alive());
+        res->body() = other_ + ctx->get_global()->get<std::string>("hello2").value();
 
-        res.prepare_payload();
+        res->prepare_payload();
         co_return;
     }
 
-    net::awaitable<void> Hello3(http::request<http::string_body>& req, http::response<http::string_body>& res,bst::request_context& ctx)
+    net::awaitable<void> Hello3(std::shared_ptr<http::request<http::string_body>> req
+        ,std::shared_ptr<http::response<http::string_body>> res
+        ,std::shared_ptr<bst::request_context> ctx)
     {
-        res.set(http::field::server, "Beast");
-        res.set(http::field::content_type, "text/html");
-        res.keep_alive(req.keep_alive());
+        res->set(http::field::server, "Beast");
+        res->set(http::field::content_type, "text/html");
+        res->keep_alive(req->keep_alive());
         bst::request client_req;
         client_req.url = "http://127.0.0.1:8090/hello1";
         client_req.keep_alive = true;
         bst::response client_res;
         int status = co_await client_.get(client_req ,client_res);
-        res.body() = other_ + ctx.get_global()->get<std::string>("hello3").value() + client_res.body;
-        res.prepare_payload();
+        res->body() = other_ + ctx->get_global()->get<std::string>("hello3").value() + client_res.body;
+        res->prepare_payload();
         co_return;
     }
 };
