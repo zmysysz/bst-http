@@ -32,7 +32,7 @@ namespace bst
             util(){}
             ~util(){}
             static bool parse_url(const std::string& url, std::string& host, std::string& port, std::string& target) {
-                std::regex url_regex(R"(^(http|https)://([^:/]+)(?::(\d+))?(/.*)?$)");
+                static std::regex url_regex(R"(^(http|https)://([^:/]+)(?::(\d+))?(/.*)?$)");
                 std::smatch match;
                 if (std::regex_match(url, match, url_regex)) {
                     std::string scheme = match[1];

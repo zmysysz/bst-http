@@ -15,7 +15,7 @@ find_package(Boost 1.74 REQUIRED)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 #include headers
-include_directories(/usr/local/include/bst-http)
+include_directories(/usr/local/include)
 
 #set executable
 add_executable(example example.cpp)
