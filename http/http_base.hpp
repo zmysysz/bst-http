@@ -1,7 +1,7 @@
 #pragma once
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
-#include <regex>
+#include <boost/regex.hpp>
 #include <iostream>
 #include "context.hpp"
 #include <boost/asio.hpp>
@@ -28,25 +28,61 @@ namespace bst
 
     class util
     {
-        public:
-            util(){}
-            ~util(){}
-            static bool parse_url(const std::string& url, std::string& host, std::string& port, std::string& target) {
-                static std::regex url_regex(R"(^(http|https)://([^:/]+)(?::(\d+))?(/.*)?$)");
-                std::smatch match;
-                if (std::regex_match(url, match, url_regex)) {
-                    std::string scheme = match[1];
-                    host = match[2];
-                    port = match[3].str().empty() ? (scheme == std::string("https") ? std::string("443") : std::string("80")) : match[3];
-                    target = match[4].str().empty() ? std::string("/") : match[4];
-                } else {
-                    fail("Invalid URL format, " + url);
-                    return false;
-                }
+    public:
+        util(){}
+        ~util(){}
+        static bool parse_url(const std::string& url, std::string& host, std::string& port, std::string& target) {
+            static boost::regex url_regex(R"(^(http|https)://([^:/]+)(?::(\d+))?(/.*)?$)");
+            boost::smatch match;
+            if (boost::regex_match(url, match, url_regex)) {
+                std::string scheme = match[1];
+                host = match[2];
+                port = match[3].str().empty() ? (scheme == std::string("https") ? std::string("443") : std::string("80")) : match[3];
+                target = match[4].str().empty() ? std::string("/") : match[4];
+            } else {
+                fail("Invalid URL format, " + url);
+                return false;
+            }
+            return true;
+        }
+
+        static bool parse_request(boost::beast::string_view request_uri, 
+                std::string& path, std::map<std::string, 
+                std::string>& params) {
+            if(request_uri.empty()) {
+                fail("Request URI is empty");
+                return false;
+            }
+            size_t pos = request_uri.find('?');
+            if (pos == boost::beast::string_view::npos) {
+                path = std::string(request_uri);
                 return true;
             }
-    };
+            path = std::string(request_uri.substr(0, pos));
+            boost::beast::string_view query = request_uri.substr(pos + 1);
+            while (!query.empty()) {
+                size_t amp = query.find('&');
+                boost::beast::string_view pair = query.substr(0, amp);
+                size_t eq = pair.find('=');
 
+                if (eq != boost::beast::string_view::npos) {
+                    // Split into key and value
+                    boost::beast::string_view key = pair.substr(0, eq);
+                    boost::beast::string_view value = pair.substr(eq + 1);
+                    params.emplace(std::string(key), std::string(value));
+                } else {
+                    // No '=', treat the whole thing as a key with empty value
+                    params.emplace(std::string(pair), std::string());
+                }
+                // Advance to the next parameter, if any
+                if (amp == boost::beast::string_view::npos)
+                    break;
+                query.remove_prefix(amp + 1);
+            }
+            return true;
+        }
+    };
+    
     class request_timer
     {
         // This class is used to keep the session alive and to time it out.

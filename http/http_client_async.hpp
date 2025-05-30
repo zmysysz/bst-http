@@ -214,8 +214,8 @@ private:
             co_return res.status_code;
         } catch (const std::exception&) {
             shutdown_and_close(conn);
-            co_return co_await request_impl(method, req, res, redirect_count, retry_count + 1);
         }
+        co_return co_await request_impl(method, req, res, redirect_count, retry_count + 1);
     }
 
     asio::awaitable<std::shared_ptr<connection>> get_connection(const std::string& host, const std::string& port, bool keep_alive) {

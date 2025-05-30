@@ -71,6 +71,24 @@ namespace bst {
             }
             return nullptr;
         }
+        std::string get_path() { 
+            return path;
+        }
+        bool get_param(const std::string &key,std::string &value) {
+            auto it = params.find(key);
+            if(it != params.end()) {
+                value = it->second;
+                return true;
+            }
+            return false;
+        }
+        std::string get_param(const std::string &key) {
+            auto it = params.find(key);
+            if(it != params.end()) {
+                return it->second;
+            }
+            return "";
+        }
         int get_response_type() { 
             return res_type;
         }
@@ -116,6 +134,8 @@ namespace bst {
         std::shared_ptr<http::request<http::string_body>> req;
         std::shared_ptr<http::response<http::string_body>> res_string;
         std::shared_ptr<http::response<http::file_body>> res_file;
+        std::string path; // the request path
+        std::map<std::string, std::string> params;
         int res_type = 0; // 0: string, 1: file
         bool auto_response;
     };
@@ -128,6 +148,7 @@ namespace bst {
         net::awaitable<int> handle_request(
             std::shared_ptr<request_context> const& ctx,
             std::shared_ptr<http::request<http::string_body>> req) {
+            util::parse_request(req->target(), ctx->path, ctx->params);
             auto it = request_handler::routes_.find(req->target());
             if (it !=  request_handler::routes_.end()) {
                 if (it->second.type() == typeid(FuncHandlerResponseString)) {
