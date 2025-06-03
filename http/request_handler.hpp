@@ -149,7 +149,7 @@ namespace bst {
             std::shared_ptr<request_context> const& ctx,
             std::shared_ptr<http::request<http::string_body>> req) {
             util::parse_request(req->target(), ctx->path, ctx->params);
-            auto it = request_handler::routes_.find(req->target());
+            auto it = request_handler::routes_.find(ctx->path);
             if (it !=  request_handler::routes_.end()) {
                 if (it->second.type() == typeid(FuncHandlerResponseString)) {
                     auto handler = boost::any_cast<FuncHandlerResponseString>(it->second);
