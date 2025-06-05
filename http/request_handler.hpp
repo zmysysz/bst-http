@@ -89,6 +89,12 @@ namespace bst {
             }
             return "";
         }
+        std::string get_peer_ip() {
+            if(stream.socket().is_open()) {
+                return stream.socket().remote_endpoint().address().to_string();
+            }
+            return "";
+        }
         int get_response_type() { 
             return res_type;
         }
