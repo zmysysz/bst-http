@@ -14,7 +14,7 @@ using tcp = net::ip::tcp;
 
 namespace bst {
 #define SOCKET_BUFFER_SIZE 8192
-#define LARGE_REQUEST_BODY_SIZE 5*1000*1000
+#define LARGE_REQUEST_BODY_SIZE 5*1024*1024
 
     class request_session : public std::enable_shared_from_this<request_session>
     {
