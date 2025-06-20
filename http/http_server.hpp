@@ -43,7 +43,9 @@ namespace bst {
             svr_ctx_->set<int>("request_timeout", 600);
             svr_ctx_->set<int>("max_connections", 10000);  
             svr_ctx_->set<int>("connection_timeout", 30);
-            svr_ctx_->set<int>("request_timeout", 30);    
+            svr_ctx_->set<int>("request_timeout", 30);
+            svr_ctx_->set<int>("max_requests", 600000);
+            svr_ctx_->set<size_t>("max_request_body_size", 100*1024*1024);
         }
         // user can get and set the context
         // then use the context on the request_handler
@@ -51,21 +53,25 @@ namespace bst {
         {
             return svr_ctx_->get_global();
         }
-        //
         void set_session_timeout(int seconds)
         {
-            // Set the timeout
             svr_ctx_->set<int>("session_timeout",seconds);
         }
-        //
         void set_request_timeout(int seconds)
         {
-            // Set the timeout
             svr_ctx_->set<int>("request_timeout",seconds);
         }
-        //
         void set_max_connections(int max) {
             svr_ctx_->set<int>("max_connections", max);
+        }
+        void set_connection_timeout(int seconds) {
+            svr_ctx_->set<int>("connection_timeout", seconds);
+        }
+        void set_max_requests(int max) {
+            svr_ctx_->set<int>("max_requests", max);
+        }
+        void set_max_request_body_size(size_t max) {
+            svr_ctx_->set<size_t>("max_request_body_size", max);
         }
         // Accepts incoming connections and launches the sessions
         void run_server()
