@@ -134,6 +134,7 @@ namespace bst {
             }
             co_return be_succ;
         }
+    private:
         friend class request_handler_impl;
         friend class request_session;
         beast::tcp_stream & stream;

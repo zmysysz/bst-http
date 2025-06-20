@@ -6,6 +6,7 @@
 #include "request_handler.hpp"
 #include "context.hpp"
 #include "http_base.hpp"
+#include <boost/algorithm/string.hpp>
 
 namespace beast = boost::beast;
 namespace http = beast::http;
@@ -44,7 +45,6 @@ namespace bst {
                     parser.body_limit(max_request_body_size);
                     
                     std::size_t header_bytes = co_await http::async_read_header(stream, buffer, parser, net::use_awaitable);
-
                     if (header_bytes == 0) {
                         // No data read, connection might be closed
                         break;
@@ -52,26 +52,36 @@ namespace bst {
                     // read the body
                     auto method = parser.get().method();
                     auto content_length = parser.content_length().value_or(0);
-                    bool is_large = (method == http::verb::post | method == http::verb::put) && content_length > LARGE_REQUEST_BODY_SIZE;
-                    beast::error_code ec;
-                    while (!parser.is_done()) {
-                        std::size_t n,parsed;
-                        if(is_large)
-                            n = stream.read_some(buffer.prepare(SOCKET_BUFFER_SIZE), ec);
-                        else
-                            n = co_await stream.async_read_some(buffer.prepare(SOCKET_BUFFER_SIZE), net::use_awaitable);
-                        if(n > 0) {
-                            buffer.commit(n);
-                            parsed = parser.put(buffer.data(), ec);
+                    bool is_large = false;
+                    if (method == http::verb::post || method == http::verb::put) {
+                        is_large = content_length > LARGE_REQUEST_BODY_SIZE ? true : false;
+                        // if header include 100-continue, we need to send 100-continue
+                        if (parser.get().find(http::field::expect) != parser.get().end() && boost::iequals(parser.get()[http::field::expect], "100-continue"))  {
+                            http::response<http::empty_body> res{http::status::continue_, parser.get().version()};
+                            res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+                            res.set(http::field::content_length, "0");
+                            co_await http::async_write(stream, res, net::use_awaitable);
+                        }
+                        beast::error_code ec;
+                        while (!parser.is_done()) {
+                            std::size_t n,parsed;
+                            if(is_large)
+                                n = stream.read_some(buffer.prepare(SOCKET_BUFFER_SIZE), ec);
+                            else
+                                n = co_await stream.async_read_some(buffer.prepare(SOCKET_BUFFER_SIZE), net::use_awaitable);
+                            if(n > 0) {
+                                buffer.commit(n);
+                                parsed = parser.put(buffer.data(), ec);
+                            }
+                            if (ec) {
+                                break;
+                            }
+                            buffer.consume(parsed);
                         }
                         if (ec) {
+                            throw beast::system_error{ ec };
                             break;
                         }
-                        buffer.consume(parsed);
-                    }
-                    if (ec) {
-                        throw beast::system_error{ ec };
-                        break;
                     }
                     // Create request context
                     auto req = std::make_shared<http::request<http::string_body>>(std::move(parser.get()));
