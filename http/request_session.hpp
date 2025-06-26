@@ -62,7 +62,11 @@ namespace bst {
                             res.set(http::field::content_length, "0");
                             co_await http::async_write(stream, res, net::use_awaitable);
                         }
+                        
                         beast::error_code ec;
+                        std::size_t parsed = parser.put(buffer.data(), ec);
+                        buffer.consume(parsed);
+
                         while (!parser.is_done()) {
                             std::size_t n,parsed;
                             if(is_large)
