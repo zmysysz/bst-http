@@ -25,16 +25,29 @@ namespace bst {
         }
         ~request_session() = default;
 
-        net::awaitable<void> run_session(tcp::socket &&socket,
-            std::shared_ptr<bst::context> const& ctx) {
+        net::awaitable<void> run_session(tcp::socket &&socket,std::shared_ptr<bst::context> const& ctx) {
             beast::flat_buffer buffer;
             beast::tcp_stream stream(std::move(socket));
-            try {
-                // Set the timeout for the session
-                stream.expires_after(std::chrono::seconds(
-                    ctx->get<int>("session_timeout").value_or(600)));
-                size_t max_request_body_size = ctx->get<size_t>("max_request_body_size").value_or(100 * 1000 * 1000);
-                for (;;) {
+        
+            // Set the timeout for the session
+            stream.expires_after(std::chrono::seconds(
+                ctx->get<int>("session_timeout").value_or(600)));
+            size_t max_request_body_size = ctx->get<size_t>("max_request_body_size").value_or(100 * 1000 * 1000);
+            // Lambda to send 500 response if stream is valid
+            auto send_500 = [&](beast::tcp_stream& s) -> net::awaitable<void> {
+                if (s.socket().is_open()) {
+                    http::response<http::string_body> res{http::status::internal_server_error, 11};
+                    res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+                    res.set(http::field::content_type, "text/plain");
+                    res.body() = "Internal server error";
+                    res.prepare_payload();
+                    co_await http::async_write(s, res, net::use_awaitable);
+                }
+                co_return;
+            };
+            bool be_error = false;
+            for (;;) {
+                try {
                     // Check if socket is still valid
                     if (!stream.socket().is_open()) {
                         break;
@@ -64,8 +77,6 @@ namespace bst {
                         }
                         
                         beast::error_code ec;
-                        std::size_t parsed = parser.put(buffer.data(), ec);
-                        buffer.consume(parsed);
 
                         while (!parser.is_done()) {
                             std::size_t n,parsed;
@@ -86,6 +97,11 @@ namespace bst {
                             throw beast::system_error{ ec };
                             break;
                         }
+                        // compare the received body size with content-length
+                        if(content_length != parser.get().body().size()) {
+                            throw std::runtime_error("Content-Length mismatch, content-length: " + std::to_string(content_length) + ", body size: " + std::to_string(parser.get().body().size()));
+                            break;
+                        }
                     }
                     // Create request context
                     auto req = std::make_shared<http::request<http::string_body>>(std::move(parser.get()));
@@ -96,6 +112,7 @@ namespace bst {
                     // Handle request
                     auto handler_impl = std::make_shared<request_handler_impl>();
                     int status = co_await handler_impl->handle_request(req_ctx, req);
+                    
                     // Prepare response
                     if (req_ctx->is_auto_response()) {
                         co_await req_ctx->response();
@@ -103,18 +120,23 @@ namespace bst {
                     // Clear buffer for next read
                     buffer.consume(buffer.size());
                 }
-            }
-            catch (const beast::system_error& se) {
-                if (se.code() != http::error::end_of_stream &&
-                    se.code() != beast::errc::connection_reset &&
-                    se.code() != beast::errc::operation_canceled) 
-                {
-                    fail(se.code(), "session");
+                catch (const beast::system_error& se) {
+                    if (se.code() != http::error::end_of_stream &&
+                        se.code() != beast::errc::connection_reset &&
+                        se.code() != beast::errc::operation_canceled) 
+                    {
+                        fail(se, "session system_error");
+                        be_error = true;
+                        break;
+                    }
+                }
+                catch (const std::exception& e) {
+                    fail(e, "session exception");
+                    be_error = true;
+                    break;
                 }
             }
-            catch (const std::exception& e) {
-                fail(e, "session1");
-            }
+
             // Ensure connection is properly closed
             response_sender::close(stream);
         }
