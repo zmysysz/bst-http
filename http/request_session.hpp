@@ -119,11 +119,16 @@ namespace bst {
                     }     
                     // Clear buffer for next read
                     buffer.consume(buffer.size());
+                    continue;
                 }
                 catch (const beast::system_error& se) {
                     if (se.code() != http::error::end_of_stream &&
                         se.code() != beast::errc::connection_reset &&
-                        se.code() != beast::errc::operation_canceled) 
+                        se.code() != beast::errc::operation_canceled &&
+                        se.code() != beast::errc::timed_out && 
+                        se.code() != beast::errc::network_down &&
+                        se.code() != beast::errc::stream_timeout &&
+                        se.code() != net::error::eof)
                     {
                         fail(se, "session system_error");
                         be_error = true;
@@ -136,8 +141,8 @@ namespace bst {
                 if(be_error) {
                     // If an error occurred, send a 500 response and break the loop
                     co_await send_500(stream);
-                    break;
                 }
+                break;
             }
             // Ensure connection is properly closed
             response_sender::close(stream);
