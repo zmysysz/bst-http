@@ -6,3 +6,4 @@ The framework uses Boost.Asio's coroutine mechanism, combined with simple packag
 **No-load performance test reference:**
 
 ![Alt text](bench.png)
+
