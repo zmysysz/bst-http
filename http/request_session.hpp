@@ -77,7 +77,12 @@ namespace bst {
                         }
                         
                         beast::error_code ec;
-
+                        //comsume any remaining body data in the buffer
+                        if(buffer.size() > 0) {
+                            std::size_t parsed = parser.put(buffer.data(), ec);
+                            buffer.consume(parsed);
+                        }
+                        //read the remaining body data from the stream
                         while (!parser.is_done()) {
                             std::size_t n,parsed;
                             if(is_large)
