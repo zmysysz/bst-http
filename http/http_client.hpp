@@ -221,11 +221,9 @@ private:
             ioc->run_one();
             return std::make_shared<connection>(connection{stream, ioc, std::chrono::steady_clock::now()});
         } catch (const std::exception& ex) {
-            std::cerr << "Connection error: " << ex.what() << std::endl;
-            return nullptr;
+            throw std::runtime_error("Failed to create new connection: " + host + ":" + port + " " + std::string(ex.what()));
         } catch (...) {
-            std::cerr << "Unknown connection error occurred." << std::endl;
-            return nullptr;
+            throw std::runtime_error("Unknown connection error occurred. " + host + ":" + port);
         }
     }
 

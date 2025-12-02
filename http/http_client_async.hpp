@@ -242,10 +242,10 @@ private:
             co_await stream->async_connect(results, asio::use_awaitable);
             co_return std::make_shared<connection>(connection{nullptr,stream, std::chrono::steady_clock::now()});
         } catch (const std::exception& ex) {
-            std::cerr << "Connection error: " << ex.what() << std::endl;
+            std::cerr << "Connection error: " << ex.what() << " for host: " << host << " port: " << port << std::endl;
             co_return nullptr;
         } catch (...) {
-            std::cerr << "Unknown connection error occurred." << std::endl;
+            std::cerr << "Unknown connection error occurred. for host: " << host << " port: " << port << std::endl;
             co_return nullptr;
         }
     }
