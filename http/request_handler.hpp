@@ -31,14 +31,23 @@ namespace bst {
     private:
         /* route map */ 
         inline static unordered::unordered_map<std::string, boost::any> routes_;
+        inline static std::vector<std::pair<std::string, boost::any>> prefix_routes_;
         friend class request_handler_impl;
     public:
-        static void register_route(const std::string& path, FuncHandlerResponseString handler) {
-            routes_[path] = handler;
+        static void register_route(const std::string& path, FuncHandlerResponseString handler, bool prifix_match = false) {
+            if(prifix_match) {
+                prefix_routes_.emplace_back(path, handler);
+            } else {
+                routes_[path] = handler;
+            }
         }
 
-        static void register_route(const std::string& path, FuncHandlerResponseFile handler) {
-            routes_[path] = handler;
+        static void register_route(const std::string& path, FuncHandlerResponseFile handler, bool prifix_match = false) {
+            if(prifix_match) {
+                prefix_routes_.emplace_back(path, handler);
+            } else {
+                routes_[path] = handler;
+            }
         }
     };
     //
@@ -73,6 +82,9 @@ namespace bst {
         }
         std::string get_path() { 
             return path;
+        }
+        std::string get_prifix_path() {
+            return prefix_path;
         }
         bool get_param(const std::string &key,std::string &value) {
             auto it = params.find(key);
@@ -142,6 +154,7 @@ namespace bst {
         std::shared_ptr<http::response<http::string_body>> res_string;
         std::shared_ptr<http::response<http::file_body>> res_file;
         std::string path; // the request path
+        std::string prefix_path; //the prfix path for perfix mode
         std::map<std::string, std::string> params;
         int res_type = 0; // 0: string, 1: file
         bool auto_response;
@@ -156,6 +169,7 @@ namespace bst {
             std::shared_ptr<request_context> const& ctx,
             std::shared_ptr<http::request<http::string_body>> req) {
             util::parse_request(req->target(), ctx->path, ctx->params);
+            //first full match
             auto it = request_handler::routes_.find(ctx->path);
             if (it !=  request_handler::routes_.end()) {
                 if (it->second.type() == typeid(FuncHandlerResponseString)) {
@@ -172,6 +186,28 @@ namespace bst {
                     ctx->res_type = 1;
                     co_await handler(req, res, ctx);
                     co_return (int)res->result_int();
+                }
+            } else {
+                //prefix match
+                for(auto & [path, any_handler] : request_handler::prefix_routes_) {
+                    if(ctx->path.starts_with(path)) {
+                        ctx->prefix_path = path;
+                        if (any_handler.type() == typeid(FuncHandlerResponseString)) {
+                            auto handler = boost::any_cast<FuncHandlerResponseString>(any_handler);
+                            ctx->res_string = std::make_shared<http::response<http::string_body>>(http::status::ok, req->version());
+                            auto res = ctx->res_string;
+                            ctx->res_type = 0;
+                            co_await handler(req, res, ctx);
+                            co_return (int)res->result_int();
+                        } else if (any_handler.type() == typeid(FuncHandlerResponseFile)) {
+                            auto handler = boost::any_cast<FuncHandlerResponseFile>(any_handler);
+                            ctx->res_file = std::make_shared<http::response<http::file_body>>(http::status::ok, req->version());
+                            auto res = ctx->res_file;
+                            ctx->res_type = 1;
+                            co_await handler(req, res, ctx);
+                            co_return (int)res->result_int();
+                        }
+                    }
                 }
             }
             //else
