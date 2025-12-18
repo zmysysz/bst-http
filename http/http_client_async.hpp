@@ -148,6 +148,9 @@ public:
     void set_connect_timeout(int seconds) { connect_timeout_ = seconds; }
     void set_request_timeout(int seconds) { request_timeout_ = seconds; }
     void set_response_timeout(int seconds) { response_timeout_ = seconds; }
+    void set_max_request_size(int bytes) { max_request_size_ = bytes; }
+    void set_max_response_size(int bytes) { max_response_size_ = bytes; }
+
     void set_idle_timeout(int seconds) {
         idle_timeout_ = seconds;
         connection_pool::instance().set_idle_timeout(seconds);
@@ -188,8 +191,16 @@ private:
         conn->stream->expires_after(std::chrono::seconds(request_timeout_));
 
         try {
+            //set request size limit
+            if (http_req.body().size() > static_cast<size_t>(max_request_size_)) {
+                shutdown_and_close(conn);
+                co_return -6;
+            }
             co_await http::async_write(*conn->stream, http_req, asio::use_awaitable);
             http::response<http::string_body> http_res;
+            http::request_parser<http::string_body> parser;
+            //set limit on response size
+            parser.body_limit(max_response_size_);
             conn->stream->expires_after(std::chrono::seconds(response_timeout_));
             co_await http::async_read(*conn->stream, buffer, http_res, asio::use_awaitable);
 
@@ -212,7 +223,19 @@ private:
                 shutdown_and_close(conn);
 
             co_return res.status_code;
-        } catch (const std::exception&) {
+        } catch (const beast::system_error& se) {
+            if (se.code() != http::error::end_of_stream &&
+                se.code() != beast::errc::connection_reset &&
+                se.code() != beast::errc::operation_canceled &&
+                se.code() != beast::errc::timed_out && 
+                se.code() != beast::errc::network_down &&
+                se.code() != beast::errc::stream_timeout &&
+                se.code() != net::error::eof) {
+                std::cerr << "Request system error: " << se.code().message() << std::endl;
+            }
+            shutdown_and_close(conn);
+        } catch (const std::exception& ex) {
+            std::cerr << "Request error exception: " << ex.what() << std::endl;
             shutdown_and_close(conn);
         }
         co_return co_await request_impl(method, req, res, redirect_count, retry_count + 1);
@@ -242,10 +265,10 @@ private:
             co_await stream->async_connect(results, asio::use_awaitable);
             co_return std::make_shared<connection>(connection{nullptr,stream, std::chrono::steady_clock::now()});
         } catch (const std::exception& ex) {
-            std::cerr << "Connection error: " << ex.what() << " for host: " << host << " port: " << port << std::endl;
+            std::cerr << "Connection error: " << ex.what() << std::endl;
             co_return nullptr;
         } catch (...) {
-            std::cerr << "Unknown connection error occurred. for host: " << host << " port: " << port << std::endl;
+            std::cerr << "Unknown connection error occurred." << std::endl;
             co_return nullptr;
         }
     }
@@ -268,6 +291,8 @@ private:
     int idle_timeout_ = 70;
     int max_redirects_ = 3;
     int max_retries_ = 2;
+    int max_request_size_ = 10 * 1024 * 1024; // 10 MB
+    int max_response_size_ = 10 * 1024 * 1024; // 10 MB
 };
 
 } // namespace bst

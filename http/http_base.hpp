@@ -5,6 +5,8 @@
 #include <iostream>
 #include "context.hpp"
 #include <boost/asio.hpp>
+#include <boost/stacktrace.hpp>
+#include <iomanip>
 
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http = beast::http;           // from <boost/beast/http.hpp>
@@ -13,22 +15,55 @@ using tcp = net::ip::tcp;
 
 namespace bst
 {
+    static std::string get_time(std::time_t ts = 0, const std::string& format = "%Y-%m-%d %H:%M:%S.%f") {
+        if(ts == 0) ts = std::time(nullptr);
+        std::tm tm{};
+        // use thread-safe localtime_r when available
+    #if defined(_POSIX_THREADS)
+        if (localtime_r(&ts, &tm) == nullptr) return "";
+    #else
+        auto tptr = std::localtime(&ts);
+        if (!tptr) return "";
+        tm = *tptr;
+    #endif
+        std::ostringstream oss;
+        oss << std::put_time(&tm, format.c_str());
+        return oss.str();
+    }
+
+    static void log_stacktrace(int skip = 0)
+    {
+        auto strace = boost::stacktrace::stacktrace();
+        for(std::size_t i = skip; i < strace.size(); ++i) {
+            std::cerr << strace[i] << std::endl;
+        }
+    }
+
     static void fail(const beast::system_error& se, char const* what)
     {
-        std::cerr << what << ": " << se.code().message() << " --> " << se.what() << std::endl;
+        std::cerr << get_time() << " " << what << ": " << se.code().message() << " --> " << se.what() << std::endl;
+        std::cerr << "Stack trace:" << std::endl;
+        log_stacktrace(2);
     }
     static void fail(const beast::error_code &ec, char const* what)
     {
-        std::cerr << what << ": " << ec.message() << std::endl;
+        std::cerr << get_time() << " " << what << ": " << ec.message() << std::endl;
+        std::cerr << "Stack trace:" << std::endl;
+        log_stacktrace(2);
     }
     static void fail(const std::exception& ex, char const* what)
     {
-        std::cerr << what << ": " << ex.what() << std::endl;
+        std::cerr << get_time() << " " << what << ": " << ex.what() << std::endl;
+        std::cerr << "Stack trace:" << std::endl;
+        log_stacktrace(2);
     }
-    static void fail(const std::string &what)
+    static void fail(const std::string& msg)
     {
-        std::cerr << what << std::endl;
+        std::cerr << get_time() << " " << msg << std::endl;
+        std::cerr << "Stack trace:" << std::endl;
+        log_stacktrace(2);
     }
+
 
     class util
     {
